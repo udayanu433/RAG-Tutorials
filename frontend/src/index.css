@@ -1,0 +1,142 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Outfit', sans-serif;
+
+  /* Color System - Premium Charcoal Dark (ChatGPT / Gemini Inspired) */
+  --bg-main: #0b0c10;
+  --bg-surface: rgba(22, 23, 29, 0.85);
+  --bg-surface-hover: rgba(30, 31, 39, 0.95);
+  --border-color: rgba(255, 255, 255, 0.05);
+  --border-color-glow: rgba(99, 102, 241, 0.2);
+  
+  --primary: #6366f1;
+  --primary-glow: rgba(99, 102, 241, 0.15);
+  --primary-gradient: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+  --secondary-gradient: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+  --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+  --danger-gradient: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+  
+  --text-primary: #e3e3e3;
+  --text-secondary: #9f9f9f;
+  --text-muted: #626262;
+  
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+
+  --shadow-lg: 0 16px 36px rgba(0, 0, 0, 0.4), 0 8px 16px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.1);
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-main);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(52, 211, 153, 0.06) 0px, transparent 50%),
+    radial-gradient(at 50% 50%, rgba(139, 92, 246, 0.03) 0px, transparent 50%);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Custom Elegant Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* Base Layout Config */
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0% { box-shadow: 0 0 15px 0 rgba(99, 102, 241, 0.08); }
+  50% { box-shadow: 0 0 28px 0 rgba(99, 102, 241, 0.18); }
+  100% { box-shadow: 0 0 15px 0 rgba(99, 102, 241, 0.08); }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Utilities */
+.glass-panel {
+  background: var(--bg-surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg);
+}
+
+.glass-panel:hover {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+.pulse-glow-border {
+  animation: pulseGlow 4s infinite ease-in-out;
+  border-color: var(--border-color-glow);
+}
+
+/* Scrollable areas helper */
+.scroll-container {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}

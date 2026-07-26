@@ -1,0 +1,50 @@
+# Environment secrets
+.env
+*.env
+env/
+venv/
+.venv/
+
+# Python caching & build files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Database, local FAISS store and uploaded assets
+backend/academic_hub.db
+backend/data/
+backend/vector_store/
+*.pdf
+
+# Node / Frontend build directories
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.eslintcache
+.parcel-cache
+.cache/
+.vite/
+
+# OS specific files
+.DS_Store
+Thumbs.db
