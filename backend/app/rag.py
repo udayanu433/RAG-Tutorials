@@ -45,19 +45,17 @@ class BackendRAG:
         self.pipe = None
         self.init_llm()
         
-        # Initialize Gemini Cloud Caching
+        # Initialize Gemini Cloud Generator
         self.gemini_enabled = False
         self.gemini_api_key = os.environ.get("GEMINI_API_KEY")
-        self.active_caches = {}
         if self.gemini_api_key:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=self.gemini_api_key)
                 self.gemini_enabled = True
-                print("[INFO] RAG pipeline: Gemini API Key detected. Cloud Context Caching is enabled!")
-                self.rebuild_gemini_caches()
+                print("[INFO] RAG pipeline: Gemini API Key detected. Hybrid Cloud Generation is enabled!")
             except Exception as e:
-                print(f"[WARNING] Failed to initialize Gemini client or caches on startup: {e}")
+                print(f"[WARNING] Failed to initialize Gemini generator on startup: {e}")
 
     def init_llm(self):
         groq_api_key = os.environ.get("GROQ_API_KEY")
@@ -81,114 +79,10 @@ class BackendRAG:
 
     def rebuild_gemini_caches(self):
         """
-        Gathers uploaded files from SQLite DB, maps them to Student/Admin roles,
-        verifies/uploads them to Gemini Files API, and creates/replaces Gemini Context Caches.
+        No-op method kept for backwards compatibility with endpoints.
+        No cloud caches are built, as we use a hybrid search strategy.
         """
-        if not self.gemini_enabled:
-            return
-            
-        import google.generativeai as genai
-        from google.generativeai import caching
-        import datetime
-        
-        print("[INFO] Rebuilding Gemini cloud context caches...")
-        
-        if not os.path.exists(DB_PATH):
-            print("[INFO] SQLite database does not exist yet. Skipping cloud caching.")
-            return
-            
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        # Check if table exists
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='documents'")
-        if not cursor.fetchone():
-            conn.close()
-            print("[INFO] SQLite documents table does not exist yet. Skipping cloud caching.")
-            return
-            
-        cursor.execute("SELECT title, file_path, role_access FROM documents")
-        rows = cursor.fetchall()
-        conn.close()
-        
-        if not rows:
-            print("[INFO] No documents in SQLite yet. Skipping cloud caching.")
-            return
-
-        student_docs = []
-        admin_docs = []
-        
-        for row in rows:
-            title = row["title"]
-            file_path = row["file_path"]
-            role_access = row["role_access"]
-            
-            if os.path.exists(file_path):
-                if role_access in ["Student", "All"]:
-                    student_docs.append((title, file_path))
-                admin_docs.append((title, file_path))
-            else:
-                print(f"[WARNING] File not found locally for upload: {file_path}")
-
-        # List currently active files in Gemini to avoid uploading duplicates
-        try:
-            gemini_files = {f.display_name: f for f in genai.list_files()}
-        except Exception as e:
-            print(f"[WARNING] Error listing Gemini files: {e}. Starting with empty file registry.")
-            gemini_files = {}
-            
-        def get_or_upload_file(title: str, path: str):
-            display_name = os.path.basename(path)
-            if display_name in gemini_files:
-                return gemini_files[display_name]
-            print(f"[INFO] Uploading '{display_name}' to Gemini cloud storage...")
-            g_file = genai.upload_file(path=path, display_name=display_name)
-            return g_file
-
-        def build_cache_for_role(role_name: str, doc_list: list):
-            if not doc_list:
-                return None
-                
-            g_files = []
-            for title, path in doc_list:
-                try:
-                    g_file = get_or_upload_file(title, path)
-                    g_files.append(g_file)
-                except Exception as e:
-                    print(f"[WARNING] Failed to upload {title} to Gemini: {e}")
-                    
-            if not g_files:
-                return None
-                
-            cache_display_name = f"ktu_hub_{role_name.lower()}_cache"
-            
-            try:
-                # Delete existing cache with same display name to avoid leaks
-                for c in caching.CachedContent.list():
-                    if c.display_name == cache_display_name:
-                        print(f"[INFO] Cleaning up stale cache: {c.name}")
-                        c.delete()
-            except Exception as e:
-                print(f"[WARNING] Error cleaning old Gemini caches: {e}")
-                
-            try:
-                print(f"[INFO] Creating fresh CachedContent '{cache_display_name}' with {len(g_files)} files...")
-                cache = caching.CachedContent.create(
-                    model="models/gemini-1.5-flash-001",
-                    display_name=cache_display_name,
-                    contents=g_files,
-                    ttl=datetime.timedelta(hours=5),
-                )
-                return cache
-            except Exception as e:
-                print(f"[ERROR] Failed to create CachedContent: {e}")
-                return None
-
-        # Build caches
-        self.active_caches["Student"] = build_cache_for_role("Student", student_docs)
-        self.active_caches["Admin"] = build_cache_for_role("Admin", admin_docs)
-        print("[INFO] Rebuilding Gemini caches complete.")
+        pass
 
     def load_index(self):
         if os.path.exists(FAISS_INDEX_PATH) and os.path.exists(METADATA_PATH):
@@ -215,7 +109,7 @@ class BackendRAG:
 
     def add_documents(self, text_chunks: List[str], metadatas: List[Dict[str, Any]]):
         """
-        Embeds and adds text chunks with metadata to the FAISS index (fallback vector store).
+        Embeds and adds text chunks with metadata to the FAISS index (local vector store).
         """
         if not text_chunks:
             return
@@ -233,41 +127,10 @@ class BackendRAG:
 
     def query(self, query_text: str, user_role: str, top_k: int = 5) -> str:
         """
-        If Gemini is enabled, queries the Gemini model directly using Cloud Context Caching.
-        Otherwise, performs standard FAISS local chunk retrieval and falls back to Ollama or local LLM.
+        Performs standard FAISS local chunk retrieval (role-filtered), formats context,
+        and uses the Gemini API as generator (if enabled), falling back to local models.
         """
-        if self.gemini_enabled:
-            import google.generativeai as genai
-            
-            # Map role to active cache:
-            # Student: uses student cache
-            # Faculty/Admin: uses admin cache
-            cache_role = "Student" if user_role == "Student" else "Admin"
-            cache = self.active_caches.get(cache_role)
-            
-            if cache:
-                print(f"[INFO] RAG pipeline: Querying Gemini API with Cloud Cache ({cache.display_name})...")
-                model = genai.GenerativeModel(model_name="models/gemini-1.5-flash-001")
-                prompt = f"""You are the KTU Academic Intelligent Hub assistant. Answer the user's question using ONLY the provided cached context.
-At the end of your response, ALWAYS append a section called "Sources:" listing the exact document name(s) and page number(s) (e.g. "[Source: ktu_activity_points.pdf (Page 3)]") you used to answer the question.
-If the answer cannot be found in the context, state that you do not have that information. Keep the response concise, accurate, and structured.
-
-User Role: {user_role}
-User Query: {query_text}
-
-Answer:"""
-                try:
-                    response = model.generate_content(
-                        prompt,
-                        request_options={"timeout": 60}
-                    )
-                    return response.text
-                except Exception as e:
-                    print(f"[WARNING] Gemini Cached Query failed: {e}. Falling back to local FAISS search...")
-            else:
-                print("[INFO] RAG pipeline: No active Gemini cache found. Falling back to local FAISS search...")
-
-        # --- Local FAISS Fallback ---
+        # --- Local FAISS Retrieval (Role-Filtered Context) ---
         if self.index is None or not self.metadata:
             return "Knowledge base is currently empty. Please upload documents or add notifications first."
             
@@ -326,15 +189,32 @@ Context:
 Answer:"""
         
         # Call LLM Generator
-        if self.llm_type in ["groq", "ollama"]:
-            response = self.llm.invoke([prompt])
-            response_text = response.content
-        else:
-            messages = [
-                {"role": "user", "content": prompt}
-            ]
-            outputs = self.pipe(messages, max_new_tokens=256, temperature=0.3, do_sample=False)
-            response_text = outputs[0]["generated_text"][-1]["content"]
+        response_text = ""
+        if self.gemini_enabled:
+            import google.generativeai as genai
+            print("[INFO] RAG pipeline: Querying Gemini API with local FAISS context chunks (Hybrid RAG)...")
+            model = genai.GenerativeModel(model_name="models/gemini-1.5-flash")
+            try:
+                response = model.generate_content(
+                    prompt,
+                    request_options={"timeout": 30}
+                )
+                response_text = response.text
+            except Exception as e:
+                print(f"[WARNING] Gemini Cloud Query failed: {e}. Falling back to local offline model...")
+                response_text = ""
+                
+        if not response_text:
+            # Fallback to local models
+            if self.llm_type in ["groq", "ollama"]:
+                response = self.llm.invoke([prompt])
+                response_text = response.content
+            else:
+                messages = [
+                    {"role": "user", "content": prompt}
+                ]
+                outputs = self.pipe(messages, max_new_tokens=256, temperature=0.3, do_sample=False)
+                response_text = outputs[0]["generated_text"][-1]["content"]
             
         # Programmatically append sources at the bottom
         if sources_str:
