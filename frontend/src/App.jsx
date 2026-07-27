@@ -393,6 +393,60 @@ function App() {
     }
   };
 
+  const parseBoldAndItalic = (text) => {
+    if (!text) return "";
+    const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={idx}>{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return <code key={idx}>{part.slice(1, -1)}</code>;
+      }
+      return part;
+    });
+  };
+
+  const renderMessageText = (text) => {
+    if (!text) return "";
+    const paragraphs = text.split("\n\n");
+    return paragraphs.map((para, pIdx) => {
+      if (para.startsWith("**Sources:**") || para.startsWith("Sources:")) {
+        const lines = para.split("\n");
+        return (
+          <div key={pIdx} className="citations-block">
+            <h4 style={{fontSize: "11px", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "6px", fontWeight: "600"}}>Sources:</h4>
+            <div style={{display: "flex", flexWrap: "wrap", gap: "6px"}}>
+              {lines.filter(l => l.trim() && !l.includes("Sources:")).map((line, lIdx) => {
+                const cleanLine = line.replace(/^\s*[-\*+]\s*/, "").replace(/[\[\]]/g, "");
+                return (
+                  <div key={lIdx} className="citation-badge">
+                    📄 {cleanLine}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }
+      
+      if (para.includes("\n- ") || para.includes("\n* ") || para.startsWith("- ") || para.startsWith("* ")) {
+        const lines = para.split("\n");
+        return (
+          <ul key={pIdx}>
+            {lines.map((line, lIdx) => {
+              const cleanLine = line.replace(/^\s*[-\*+]\s*/, "");
+              if (!cleanLine.trim()) return null;
+              return <li key={lIdx}>{parseBoldAndItalic(cleanLine)}</li>;
+            })}
+          </ul>
+        );
+      }
+
+      return <p key={pIdx}>{parseBoldAndItalic(para)}</p>;
+    });
+  };
+
   // Chat Prompt Suggestions
   const suggestions = [
     "What is the semester registration deadline?",
@@ -551,7 +605,7 @@ function App() {
               {messages.map((msg, index) => (
                 <div key={index} className={`chat-bubble-container ${msg.sender}`}>
                   <div className="chat-bubble">
-                    {msg.text}
+                    {renderMessageText(msg.text)}
                   </div>
                   <span className="chat-metadata">{msg.time}</span>
                 </div>
@@ -574,21 +628,40 @@ function App() {
             {/* Input form */}
             <div className="chat-input-bar">
               <div className="chat-input-container">
-                <input
-                  type="text"
+                <textarea
                   className="chat-input"
+                  rows="1"
                   placeholder="Ask about curriculum guidelines, activity points mandates..."
                   value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                  onChange={(e) => {
+                    setChatInput(e.target.value);
+                    e.target.style.height = "auto";
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
                   disabled={chatLoading}
+                  style={{
+                    resize: "none",
+                    height: "auto",
+                    maxHeight: "120px",
+                    overflowY: "auto",
+                    paddingTop: "12px",
+                    paddingBottom: "12px",
+                  }}
                 />
                 <button 
                   className="chat-send-btn" 
                   onClick={() => handleSendMessage()}
                   disabled={chatLoading || !chatInput.trim()}
                 >
-                  Send
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22 2L11 13M22 2L15 22L11 13M11 13L2 9L22 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 </button>
               </div>
             </div>
