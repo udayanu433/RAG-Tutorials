@@ -71,11 +71,8 @@ class BackendRAG:
             self.llm_type = "ollama"
             print(f"[INFO] RAG pipeline: Using local Ollama with {ollama_model}.")
         else:
-            from transformers import pipeline
-            print("[INFO] RAG pipeline: Neither Groq nor local Ollama detected. Loading offline Hugging Face LLM (Qwen/Qwen2.5-0.5B-Instruct)...")
-            self.pipe = pipeline("text-generation", model="Qwen/Qwen2.5-0.5B-Instruct")
+            print("[INFO] RAG pipeline: Neither Groq nor local Ollama detected. Offline Hugging Face LLM (Qwen/Qwen2.5-0.5B-Instruct) will load lazily on-demand if needed.")
             self.llm_type = "local_hf"
-            print("[INFO] RAG pipeline: Offline Hugging Face LLM loaded.")
 
     def rebuild_gemini_caches(self):
         """
@@ -210,6 +207,10 @@ Answer:"""
                 response = self.llm.invoke([prompt])
                 response_text = response.content
             else:
+                if self.pipe is None:
+                    from transformers import pipeline
+                    print("[INFO] RAG pipeline: Loading offline Hugging Face LLM (Qwen/Qwen2.5-0.5B-Instruct) on-demand...")
+                    self.pipe = pipeline("text-generation", model="Qwen/Qwen2.5-0.5B-Instruct")
                 messages = [
                     {"role": "user", "content": prompt}
                 ]
